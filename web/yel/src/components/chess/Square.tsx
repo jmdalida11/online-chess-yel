@@ -2,6 +2,9 @@ import { chess } from '../../store/chess';
 import { Square as ChessSquare } from 'chess.js';
 import { useState } from 'react';
 import { StyledPieceImage, StyledSquare } from './commonStyle';
+import { socket } from '../../sockets/chess-socket';
+import { useRecoilValue } from 'recoil';
+import { chessRoomInfoAtom } from '../../store/atoms/chess';
 
 interface IProps {
   piece: any;
@@ -13,6 +16,7 @@ interface IProps {
 
 const Square = ({ piece, squareName, updateBoard, setPromoting, setPromotionInfo }: IProps) => {
   const [isDragging, setIsDragging] = useState(false);
+  const roomInfo = useRecoilValue(chessRoomInfoAtom);
 
   const onDragStart = (e: React.DragEvent<HTMLImageElement>) => {
     if (piece) {
@@ -30,13 +34,15 @@ const Square = ({ piece, squareName, updateBoard, setPromoting, setPromotionInfo
     const type = e.dataTransfer.getData('type');
 
     const isPromoting = type === 'p' && ((color === 'w' && squareName[1] === '8') || (color === 'b' && squareName[1] === '1'));
-    
+    const move = { from: fromSquare as ChessSquare, to: squareName as ChessSquare };
+
     if (isPromoting) {
       if ((piece && fromSquare[0] !== squareName[0] && color !== piece.color) || (!piece && fromSquare[0] === squareName[0])) {
         setPromoting();
-        setPromotionInfo({ from: fromSquare as ChessSquare, to: squareName as ChessSquare });
+        setPromotionInfo(move);
       }
-    } else if (chess.move({ from: fromSquare as ChessSquare, to: squareName as ChessSquare })) {
+    } else if (chess.move(move)) {
+      socket.emit('chess-move', move);
       updateBoard();
     }
 
@@ -44,11 +50,11 @@ const Square = ({ piece, squareName, updateBoard, setPromoting, setPromotionInfo
   }
 
   return <StyledSquare onDrop={onDrop} onDragOver={(e) => e.preventDefault()} isLightSquare={chess.square_color(squareName) === 'light'}>
-    {piece ? <StyledPieceImage 
-      draggable={piece && chess.turn() === piece.color}
+    {piece ? <StyledPieceImage
+      draggable={piece && roomInfo.isPlayer && roomInfo.color === piece.color && chess.turn() === piece.color}
       onDragStart={onDragStart}
       onDragEnd={() => setIsDragging(false)}
-      style={{ opacity: isDragging ? 0.3 : 1 }} 
+      style={{ opacity: isDragging ? 0.3 : 1 }}
       src={`/images/${piece.color}${piece.type.toUpperCase()}.png`} /> : null}
   </StyledSquare>
 }
