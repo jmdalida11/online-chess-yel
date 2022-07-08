@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRecoilState } from 'recoil';
 import styled from 'styled-components';
 import Board from '../components/chess/Board';
+import GameRooms from '../components/GameRoom';
 import { socket } from '../sockets/chess-socket';
 import { chessRoomInfoAtom } from '../store/atoms/chess';
 import { chess } from '../store/chess';
@@ -21,9 +22,9 @@ const ButtonsContainer = styled.div`
 
 const Play = () => {
   const [reverseBoard, setReverseBoard] = useState(false);
-  const [roomId, setRoomId] = useState('');
   const [roomInfo, setRoomInfo] = useRecoilState(chessRoomInfoAtom);
-  const [playerName, setPlayerName] = useState('');
+  const [roomName, setRoomName] = useState('');
+  const [roomIds, setRoomIds] = useState([]);
 
   useEffect(() => {
     socket.on('created-game-info', (data) => {
@@ -41,35 +42,43 @@ const Play = () => {
         setRoomInfo({ ...roomInfo, inGame: true, color: data.color, isPlayer: data.isPlayer });
         setReverseBoard(data.color === 'b');
       }
+      setRoomName(data.roomName);
+    });
+
+    socket.on('get-room-ids', (data) => {
+      setRoomIds(data);
     });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const createGameRoom = () => {
-    if (roomId === '') {
+    if (roomName === '') {
+      alert("Please Enter Room Name");
       return;
     }
-    socket.emit('create-game-room', { roomId, playerName });
+    socket.emit('create-game-room', { roomName: roomName });
   }
 
-  const joinGameRoom = () => {
-    socket.emit('join-game-room', { roomId, playerName });
+  const joinGameRoom = (roomId: string) => {
+    socket.emit('join-game-room', { roomId });
   }
 
   return <div>
     <ButtonsContainer>
       {!roomInfo.inGame && <div>
         <button onClick={createGameRoom}>Create Room</button>
-        <button onClick={joinGameRoom}>Join Room</button>
-        <input type="text" onChange={(e) => setRoomId(e.target.value)} value={roomId} placeholder="Enter Room Id" />
-        <input type="text" onChange={(e) => setPlayerName(e.target.value)} value={playerName} placeholder="Player Name" />
+        <input type="text" onChange={(e) => setRoomName(e.target.value)} value={roomName} placeholder="Room Name" />
       </div>}
-      {roomInfo.inGame && <button onClick={() => { setReverseBoard(!reverseBoard) }}>Reverse Board</button>}
+      {roomInfo.inGame && <div>
+        <button onClick={() => { setReverseBoard(!reverseBoard) }}>Reverse Board</button>
+        <h2>Room name: <i>{roomName}</i></h2>
+      </div>}
     </ButtonsContainer>
     {roomInfo.inGame && <BoardContainer>
       <Board isReverse={reverseBoard} />
     </BoardContainer>}
+    {!roomInfo.inGame && <GameRooms joinRoom={joinGameRoom} rooms={roomIds} />}
   </div>
 }
 
